@@ -114,6 +114,10 @@ export interface CaptionInfo {
   page: number;
 }
 
+/**
+ * Aggregate statistics about an extraction. Deliberately holds no document
+ * content: no section titles, table cells, or captions (see server/src/privacy.ts).
+ */
 export interface ExtractionInfo {
   pageCount: number;
   charCount: number;
@@ -122,12 +126,15 @@ export interface ExtractionInfo {
   textDensity: "good" | "sparse";
   bodyFontSize: number;
   extractionMs: number;
-  sections: SectionInfo[];
-  tables: TableInfo[];
-  captions: CaptionInfo[];
+  sectionCount: number;
+  auditableSectionCount: number;
+  tableCount: number;
+  reliableTableCount: number;
+  captionCount: number;
   warnings: string[];
 }
 
+/** The extracted paper. Exists only in memory while an audit runs; never stored or served. */
 export interface AuditedDocument {
   text: string;
   pages: PageText[];
@@ -178,6 +185,7 @@ export interface AuditRecord {
   summary: AuditSummary | null;
   limitations: string[];
   timings: AuditTimings | null;
+  /** Always null: the source document is not retained after the audit completes. */
   document: AuditedDocument | null;
 }
 
@@ -211,6 +219,8 @@ export interface BackendInfo {
     location: string;
     note: string;
   };
+  /** True when CLAIMCHECK_ADMIN_TOKEN is set: listing all reports and deleting need the token. */
+  adminProtected: boolean;
   sampleAvailable: boolean;
 }
 

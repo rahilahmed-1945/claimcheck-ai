@@ -45,7 +45,7 @@ export function reportFilename(record: AuditRecord, extension: "md" | "json"): s
 }
 
 export function buildMarkdownReport(record: AuditRecord): string {
-  if (!record.document || !record.summary) {
+  if (record.status !== "complete" || !record.summary) {
     throw new Error("Audit is not complete");
   }
   const lines: string[] = [];
@@ -67,7 +67,8 @@ export function buildMarkdownReport(record: AuditRecord): string {
   lines.push(
     "This report identifies relationships between statements in one paper and evidence extracted from the same PDF. " +
       "It is a revision aid, not a verdict on research validity, integrity, or author intent. " +
-      "Every quotation below is drawn from the extracted document text; nothing is generated or externally retrieved.",
+      "Every quotation below is drawn from the extracted document text; nothing is generated or externally retrieved. " +
+      "The uploaded PDF and its full text are not retained; only these findings and their short quoted excerpts are kept.",
   );
   lines.push("");
   lines.push("## Classification summary");
@@ -160,16 +161,13 @@ export function buildMarkdownReport(record: AuditRecord): string {
   lines.push("");
   lines.push("## Extracted structure");
   lines.push("");
-  if (record.document.sections.length > 0) {
-    lines.push("| Section | Pages | Words | Audited |");
-    lines.push("| --- | --- | ---: | --- |");
-    for (const section of record.document.sections) {
-      lines.push(
-        `| ${section.title.replace(/\|/g, "\\|")} | ${section.pageStart}–${section.pageEnd} | ${section.wordCount} | ${section.auditable ? "yes" : "no"} |`,
-      );
-    }
+  if (extraction) {
+    lines.push(
+      `${extraction.sectionCount} section(s) detected, ${extraction.auditableSectionCount} audited; ` +
+        `${extraction.tableCount} table(s), ${extraction.reliableTableCount} reliably reconstructed; ${extraction.captionCount} caption(s).`,
+    );
   } else {
-    lines.push("_No sections detected._");
+    lines.push("_No extraction statistics are stored for this audit._");
   }
   lines.push("");
   lines.push("---");
@@ -183,7 +181,7 @@ export function buildMarkdownReport(record: AuditRecord): string {
 }
 
 export function buildJsonReport(record: AuditRecord): string {
-  if (!record.document) throw new Error("Audit is not complete");
+  if (record.status !== "complete" || !record.summary) throw new Error("Audit is not complete");
   return JSON.stringify(
     {
       product: "ClaimCheck AI",
@@ -193,7 +191,6 @@ export function buildJsonReport(record: AuditRecord): string {
       document: {
         filename: record.filename,
         fileSize: record.fileSize,
-        sha256: record.fileHash,
         pageCount: record.extraction?.pageCount ?? null,
         wordCount: record.extraction?.wordCount ?? null,
         createdAt: record.createdAt,
@@ -207,7 +204,7 @@ export function buildJsonReport(record: AuditRecord): string {
       },
       documentTextIncluded: false,
       note:
-        "This JSON report contains traceable evidence quotations and page locations. Full extracted text is viewable in the application. Classifications are evidence relationships, not verdicts.",
+        "This JSON report contains traceable evidence quotations and page locations. The uploaded PDF and its full text are not retained by ClaimCheck. Classifications are evidence relationships, not verdicts.",
     },
     null,
     2,

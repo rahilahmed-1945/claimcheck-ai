@@ -102,7 +102,7 @@ const DATA_CARDS: { icon: IconName; title: string; body: string; tone?: "warning
   {
     icon: "database",
     title: "What is stored",
-    body: "Extracted text, section structure, reconstructed tables, findings, and metadata are stored in a local SQLite database at data/claimcheck.sqlite.",
+    body: "Only the audit is stored: findings (with the short claim and evidence excerpts they quote), summaries, limitations, timings, and aggregate counts. The full text, page text, section headings, tables, captions, and a file hash are not stored.",
   },
   {
     icon: "lock",
@@ -112,7 +112,7 @@ const DATA_CARDS: { icon: IconName; title: string; body: string; tone?: "warning
   {
     icon: "alert",
     title: "Security limits",
-    body: "The SQLite file is not encrypted at rest, there is no retention automation, and phase one has no login. Anyone who can reach this server or read its database can view audits.",
+    body: "The SQLite file is not encrypted at rest and there is no retention automation. Anyone with a report's link can open it. Unless the server sets an admin token, anyone who can reach it can also list and delete reports.",
     tone: "warning",
   },
 ];

@@ -12,7 +12,7 @@
     "start": "cross-env NODE_ENV=production tsx server/src/index.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "npm run test:unit && npm run test:evaluation",
-    "test:unit": "node --import tsx --test tests/extraction.test.ts tests/audit.test.ts tests/reports.test.ts tests/api.test.ts tests/engine_new.test.ts tests/extraction_regression.test.ts tests/two_column_layout.test.ts tests/consistency_checks.test.ts tests/table_evidence.test.ts tests/voice.test.ts tests/benchmark.test.ts",
+    "test:unit": "node --import tsx --test tests/extraction.test.ts tests/audit.test.ts tests/reports.test.ts tests/api.test.ts tests/engine_new.test.ts tests/extraction_regression.test.ts tests/two_column_layout.test.ts tests/consistency_checks.test.ts tests/table_evidence.test.ts tests/voice.test.ts tests/benchmark.test.ts tests/privacy.test.ts",
     "test:evaluation": "tsx evaluation/run.ts",
     "test:write": "tsx evaluation/run.ts --write",
     "test:publish": "tsx evaluation/run.ts --write --publish",

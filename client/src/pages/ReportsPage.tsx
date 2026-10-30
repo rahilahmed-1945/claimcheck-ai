@@ -217,9 +217,10 @@ export function ReportsPage() {
 
       <p className="workspace-footnote">
         <Icon name="database" size={14} />
-        Reports and extracted paper text are stored in the local SQLite database. They are not
-        encrypted, are retained until you delete them, and are visible to anyone who can access this
-        server. Phase one has no accounts or access control.
+        Reports (findings, summaries, and the short claim and evidence excerpts they quote) are stored
+        in the server's SQLite database. Uploaded PDFs and their full text are not kept. Reports are not
+        encrypted, are retained until deleted, and anyone with a report's link can open it. Without an
+        admin token, anyone who can reach this server can also list and delete reports.
       </p>
     </div>
   );

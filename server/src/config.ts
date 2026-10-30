@@ -18,6 +18,12 @@ export const PORT =
     : 8787;
 /** Bind address. Defaults to localhost; a hosting platform needs HOST=0.0.0.0 to route traffic in. */
 export const HOST = process.env.HOST?.trim() || "127.0.0.1";
+/**
+ * Optional admin token. When set, listing every report, deleting reports, and
+ * restoring backups require "Authorization: Bearer <token>". Individual report
+ * links (unguessable ids) and uploads stay open. Unset keeps the old open behaviour.
+ */
+export const ADMIN_TOKEN = process.env.CLAIMCHECK_ADMIN_TOKEN?.trim() || null;
 export const MAX_FILE_BYTES = 25 * 1024 * 1024;
 export const MAX_PAGES = 150;
 export const PROCESSING_TIMEOUT_MS = 90_000;

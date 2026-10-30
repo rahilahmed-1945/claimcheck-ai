@@ -1,8 +1,9 @@
 /**
  * Report-generation tests.
  *
- * Reports must be built from a completed audit record, retain evidence
- * quotations and limitations, and never include the full extracted text.
+ * Reports must be built from a completed audit record as stored (no source
+ * document, no file hash), retain evidence quotations and limitations, and
+ * never include the full extracted text, section titles list, or table cells.
  */
 import assert from "node:assert/strict";
 import test, { before } from "node:test";
@@ -10,20 +11,23 @@ import { EVALUATION_CASES, buildCasePdf } from "../evaluation/corpus.js";
 import { extractPdf } from "../server/src/pdf/extract.js";
 import { runAudit } from "../server/src/audit/engine.js";
 import { buildJsonReport, buildMarkdownReport, reportFilename } from "../server/src/report.js";
+import { sanitizeExtraction } from "../server/src/privacy.js";
 import { ENGINE_VERSION, type AuditRecord } from "../shared/types.js";
 
 let record: AuditRecord;
+let fullText = "";
 
 before(async () => {
   const testCase = EVALUATION_CASES.find((candidate) => candidate.id === "numeric-core");
   assert.ok(testCase);
   const document = await extractPdf(await buildCasePdf(testCase));
   const audit = runAudit(document, Date.now());
+  fullText = document.text;
   record = {
     id: "audit-report-fixture",
     filename: "Nimbus numeric fixture.pdf",
     fileSize: 12345,
-    fileHash: "a".repeat(64),
+    fileHash: null,
     status: "complete",
     stage: "complete",
     stageDetail: "Audit report ready.",
@@ -32,30 +36,12 @@ before(async () => {
     completedAt: "2026-01-02T03:04:06.000Z",
     engineVersion: ENGINE_VERSION,
     error: null,
-    extraction: {
-      pageCount: document.pageCount,
-      charCount: document.charCount,
-      wordCount: document.wordCount,
-      pagesWithText: document.pagesWithText,
-      textDensity: "good",
-      bodyFontSize: document.bodyFontSize,
-      extractionMs: document.extractionMs,
-      sections: document.sections,
-      tables: document.tables,
-      captions: document.captions,
-      warnings: document.warnings,
-    },
+    extraction: sanitizeExtraction({ ...document, textDensity: "good" }),
     findings: audit.findings,
     summary: audit.summary,
     limitations: audit.limitations,
     timings: { extractionMs: document.extractionMs, auditMs: audit.auditMs, totalMs: 2 },
-    document: {
-      text: document.text,
-      pages: document.pages,
-      sections: document.sections,
-      tables: document.tables,
-      captions: document.captions,
-    },
+    document: null,
   };
 });
 
@@ -95,7 +81,8 @@ test("builds a machine-readable JSON report without the full document text", () 
     product: string;
     reportFormatVersion: number;
     engineVersion: string;
-    document: { filename: string; sha256: string | null };
+    document: Record<string, unknown>;
+    extraction: Record<string, unknown>;
     audit: { summary: unknown; findings: typeof record.findings; limitations: string[] };
     documentTextIncluded: boolean;
   };
@@ -104,11 +91,14 @@ test("builds a machine-readable JSON report without the full document text", () 
   assert.equal(parsed.reportFormatVersion, 1);
   assert.equal(parsed.engineVersion, ENGINE_VERSION);
   assert.equal(parsed.document.filename, record.filename);
-  assert.equal(parsed.document.sha256, record.fileHash);
+  assert.ok(!("sha256" in parsed.document), "reports must not carry a file hash");
+  for (const key of ["sections", "tables", "captions", "text", "pages"]) {
+    assert.ok(!(key in parsed.extraction), `extraction must not carry ${key}`);
+  }
   assert.equal(parsed.documentTextIncluded, false);
   assert.equal(parsed.audit.findings.length, record.findings.length);
   assert.ok(parsed.audit.limitations.length > 0);
-  assert.ok(!raw.includes(record.document!.text), "JSON reports must not embed the full extracted text");
+  assert.ok(!raw.includes(fullText), "JSON reports must not embed the full extracted text");
 
   for (const finding of parsed.audit.findings) {
     for (const reference of finding.evidence) {

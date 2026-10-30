@@ -310,8 +310,8 @@ export function UploadPanel({ health, healthError, onRetryHealth, onUploaded }: 
 
       <p className="privacy-line">
         <Icon name="lock" size={14} />
-        Processed on this machine. No external AI service is called. The original PDF is held in
-        memory and is not saved.
+        Processed on this server. No external AI service is called. The PDF and its text are held in
+        memory and not saved; only the audit findings, with short quoted excerpts, are kept.
       </p>
     </section>
   );

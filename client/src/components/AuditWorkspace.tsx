@@ -251,8 +251,8 @@ export function AuditWorkspace({ audit }: { audit: AuditRecord }) {
           className={`workspace-tab${tab === "document" ? " is-active" : ""}`}
           onClick={() => setTab("document")}
         >
-          <Icon name="file" size={15} /> Extracted text
-          {extraction && <span>{extraction.pageCount}</span>}
+          <Icon name="file" size={15} /> Source text
+          {audit.document && extraction && <span>{extraction.pageCount}</span>}
         </button>
       </div>
 
@@ -295,12 +295,9 @@ export function AuditWorkspace({ audit }: { audit: AuditRecord }) {
               <p>
                 The claim selector did not find statements with checkable numeric, statistical, or
                 scope language in the auditable sections. This is not a clean bill of health. Review
-                the extracted text manually and read the method limits.
+                the paper manually and read the method limits.
               </p>
               <div className="empty-actions">
-                <button type="button" className="button button-secondary button-sm" onClick={() => setTab("document")}>
-                  <Icon name="file" size={14} /> Review extracted text
-                </button>
                 <Link to="/methodology" className="button button-ghost button-sm">
                   Read method limits
                 </Link>
@@ -361,7 +358,7 @@ export function AuditWorkspace({ audit }: { audit: AuditRecord }) {
                 {selected ? (
                   <FindingDetail
                     finding={selected}
-                    onViewInDocument={viewInDocument}
+                    onViewInDocument={audit.document ? viewInDocument : undefined}
                     reviewerState={reviewer.getState(selected.id)}
                     onDispositionChange={(disposition) => reviewer.setDisposition(selected.id, disposition)}
                     onNoteChange={(note) => reviewer.setNote(selected.id, note)}
@@ -378,7 +375,7 @@ export function AuditWorkspace({ audit }: { audit: AuditRecord }) {
           )}
         </div>
       ) : (
-        <div className="document-workspace" role="tabpanel" aria-label="Extracted document text">
+        <div className="document-workspace" role="tabpanel" aria-label="Source text">
           {audit.document ? (
             <DocumentView
               document={audit.document}
@@ -388,15 +385,31 @@ export function AuditWorkspace({ audit }: { audit: AuditRecord }) {
               onClearHighlight={() => setHighlight(null)}
             />
           ) : (
-            <div className="notice notice-warning">No extracted document is stored for this audit.</div>
+            <div className="notice notice-quiet source-unavailable" role="status">
+              <Icon name="shield" size={18} />
+              <div>
+                <strong>Source text is not retained.</strong>
+                <p>
+                  To protect unpublished work, ClaimCheck processes the uploaded PDF in memory and keeps
+                  only the audit: findings, summaries, and statistics. The full text, pages, section
+                  headings, and tables are not stored, so the document cannot be shown here.
+                </p>
+                <p>
+                  Each finding still quotes the claim and evidence excerpts it relies on, with their
+                  section and page number{extraction ? ` (${extraction.pageCount} pages, ${extraction.wordCount.toLocaleString()} words were analysed)` : ""}.
+                  Open your own copy of the PDF to read them in context.
+                </p>
+              </div>
+            </div>
           )}
         </div>
       )}
 
       <p className="workspace-footnote">
         <Icon name="database" size={14} />
-        This report is stored locally in the ClaimCheck SQLite database. It can be deleted from the
-        Reports page. Findings are not uploaded to any external service.
+        This report's findings, summary, and short quoted excerpts are stored in the ClaimCheck
+        database on this server. The uploaded PDF and its full text are not kept. Findings are not
+        sent to any external service.
         {reviewer.hasAnnotations && (
           <>
             {" "}Reviewer notes and dispositions are stored in your browser's local storage,

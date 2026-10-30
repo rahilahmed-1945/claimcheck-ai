@@ -11,6 +11,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { ENGINE_VERSION, type AuditRecord, type Finding, type FindingCategory } from "../shared/types.js";
 import { buildJsonReport, buildMarkdownReport } from "../server/src/report.js";
+import { sanitizeExtraction } from "../server/src/privacy.js";
 import { extractPdf } from "../server/src/pdf/extract.js";
 import { runAudit } from "../server/src/audit/engine.js";
 import {
@@ -291,19 +292,7 @@ function buildRecord(
     completedAt: "2026-01-01T00:00:01.000Z",
     engineVersion: "eval",
     error: null,
-    extraction: {
-      pageCount: extracted.pageCount,
-      charCount: extracted.charCount,
-      wordCount: extracted.wordCount,
-      pagesWithText: extracted.pagesWithText,
-      textDensity: extracted.charCount < 2500 ? "sparse" : "good",
-      bodyFontSize: extracted.bodyFontSize,
-      extractionMs: extracted.extractionMs,
-      sections: extracted.sections,
-      tables: extracted.tables,
-      captions: extracted.captions,
-      warnings: extracted.warnings,
-    },
+    extraction: sanitizeExtraction({ ...extracted, textDensity: extracted.charCount < 2500 ? "sparse" : "good" }),
     findings: result.findings,
     summary: result.summary,
     limitations: result.limitations,
@@ -312,13 +301,8 @@ function buildRecord(
       auditMs: result.auditMs,
       totalMs: extracted.extractionMs + result.auditMs,
     },
-    document: {
-      text: extracted.text,
-      pages: extracted.pages,
-      sections: extracted.sections,
-      tables: extracted.tables,
-      captions: extracted.captions,
-    },
+    // Stored records never carry the source document; reports must work without it.
+    document: null,
   };
 }
 

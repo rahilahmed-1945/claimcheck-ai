@@ -1631,7 +1631,7 @@ export function runAudit(
     "Evidence retrieval is lexical and numeric. Paraphrased support may be missed, and a retrieved passage is not proof of semantic entailment.",
     "The five classifications describe the relationship between a sentence and the accessible document. They are not verdicts on research validity, integrity, or author intent.",
     "External literature and citations are not fetched or verified. A citation is never treated as proof, and a missing citation is never treated as disproof.",
-    "Documents are processed only on this server. Extracted text and findings are stored in the local SQLite audit store; the original PDF is held in memory during processing and is not saved. No external AI or document service is called.",
+    "Documents are processed only on this server. The uploaded PDF and its extracted text are held in memory during processing and are not stored; only findings, summaries, and aggregate statistics are kept. No external AI or document service is called.",
     ...methodologyLimitations,
   ];
 

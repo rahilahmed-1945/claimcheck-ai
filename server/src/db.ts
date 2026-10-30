@@ -5,11 +5,11 @@ import type {
   AuditRecord,
   AuditSummary,
   AuditTimings,
-  AuditedDocument,
   ExtractionInfo,
   Finding,
 } from "../../shared/types.js";
 import { DB_PATH } from "./config.js";
+import { extractionHasContent, sanitizeExtraction } from "./privacy.js";
 
 const db = new DatabaseSync(DB_PATH);
 
@@ -52,6 +52,35 @@ db.prepare(
   } satisfies AuditErrorPayload),
 );
 
+/**
+ * Remove document content written by earlier versions: full text and pages
+ * (document_json), section titles, table cells, and captions (extraction_json),
+ * and file hashes. Findings, summaries, limitations, and timings are untouched.
+ * Safe to run any number of times; returns how many rows changed.
+ */
+export function purgeStoredDocumentContent(): number {
+  const rows = db
+    .prepare(
+      `SELECT id, extraction_json, document_json, file_hash FROM audits
+       WHERE document_json IS NOT NULL OR file_hash IS NOT NULL OR extraction_json IS NOT NULL`,
+    )
+    .all() as AuditRow[];
+  const update = db.prepare(`UPDATE audits SET document_json = NULL, file_hash = NULL, extraction_json = ? WHERE id = ?`);
+  let changed = 0;
+  for (const row of rows) {
+    const extraction = parseJson<unknown>(row.extraction_json, null);
+    if (row.document_json === null && row.file_hash === null && !extractionHasContent(extraction)) continue;
+    const cleaned = extraction === null ? null : JSON.stringify(sanitizeExtraction(extraction));
+    update.run(cleaned, String(row.id));
+    changed += 1;
+  }
+  if (changed > 0) {
+    // Rewrite the file so the removed text does not linger in free pages or the WAL.
+    db.exec("PRAGMA wal_checkpoint(TRUNCATE); VACUUM; PRAGMA wal_checkpoint(TRUNCATE);");
+  }
+  return changed;
+}
+
 function parseJson<T>(value: unknown, fallback: T): T {
   if (typeof value !== "string" || value.length === 0) return fallback;
   try {
@@ -77,12 +106,13 @@ function rowToRecord(row: AuditRow): AuditRecord {
     completedAt: row.completed_at ? String(row.completed_at) : null,
     engineVersion: String(row.engine_version),
     error: parseJson<AuditErrorPayload | null>(row.error_json, null),
-    extraction: parseJson<ExtractionInfo | null>(row.extraction_json, null),
+    extraction: sanitizeExtraction(parseJson<unknown>(row.extraction_json, null)),
     findings: parseJson<Finding[]>(row.findings_json, []),
     summary: parseJson<AuditSummary | null>(row.summary_json, null),
     limitations: parseJson<string[]>(row.limitations_json, []),
     timings: parseJson<AuditTimings | null>(row.timings_json, null),
-    document: parseJson<AuditedDocument | null>(row.document_json, null),
+    // The source document is never served, even if an old row still holds one.
+    document: null,
   };
 }
 
@@ -90,19 +120,17 @@ export interface CreateAuditInput {
   id: string;
   filename: string;
   fileSize: number;
-  fileHash: string;
   engineVersion: string;
 }
 
 export function createAudit(input: CreateAuditInput): void {
   db.prepare(
     `INSERT INTO audits (id, filename, file_size, file_hash, status, stage, stage_detail, progress, created_at, engine_version, limitations_json)
-     VALUES (?, ?, ?, ?, 'queued', 'queued', ?, 0, ?, ?, '[]')`,
+     VALUES (?, ?, ?, NULL, 'queued', 'queued', ?, 0, ?, ?, '[]')`,
   ).run(
     input.id,
     input.filename,
     input.fileSize,
-    input.fileHash,
     "Waiting for the processing worker.",
     new Date().toISOString(),
     input.engineVersion,
@@ -141,7 +169,6 @@ export interface CompleteAuditInput {
   summary: AuditSummary;
   limitations: string[];
   extraction: ExtractionInfo;
-  document: AuditedDocument;
   timings: AuditTimings;
 }
 
@@ -149,14 +176,13 @@ export function completeAudit(id: string, result: CompleteAuditInput): void {
   db.prepare(
     `UPDATE audits SET status = 'complete', stage = 'complete', stage_detail = 'Audit report ready.',
      progress = 100, completed_at = ?, findings_json = ?, summary_json = ?, limitations_json = ?,
-     extraction_json = ?, document_json = ?, timings_json = ? WHERE id = ?`,
+     extraction_json = ?, document_json = NULL, timings_json = ? WHERE id = ?`,
   ).run(
     new Date().toISOString(),
     JSON.stringify(result.findings),
     JSON.stringify(result.summary),
     JSON.stringify(result.limitations),
-    JSON.stringify(result.extraction),
-    JSON.stringify(result.document),
+    JSON.stringify(sanitizeExtraction(result.extraction)),
     JSON.stringify(result.timings),
     id,
   );
@@ -186,7 +212,7 @@ export function listAudits(limit = 30): AuditListItem[] {
   return rows.map((row) => {
     const error = parseJson<AuditErrorPayload | null>(row.error_json, null);
     const summary = parseJson<AuditSummary | null>(row.summary_json, null);
-    const extraction = parseJson<ExtractionInfo | null>(row.extraction_json, null);
+    const extraction = sanitizeExtraction(parseJson<unknown>(row.extraction_json, null));
     return {
       id: String(row.id),
       filename: String(row.filename),
@@ -203,6 +229,34 @@ export function listAudits(limit = 30): AuditListItem[] {
       engineVersion: String(row.engine_version),
     };
   });
+}
+
+/**
+ * Restore a completed audit from a sanitized backup (scripts/backup-report.ts).
+ * Keeps the original id so existing report links work. Never overwrites an
+ * existing record; returns false if the id is already present.
+ */
+export function importCompletedAudit(record: AuditRecord): boolean {
+  const result = db
+    .prepare(
+      `INSERT OR IGNORE INTO audits (id, filename, file_size, file_hash, status, stage, stage_detail, progress, created_at,
+         completed_at, engine_version, error_json, extraction_json, findings_json, summary_json, limitations_json, timings_json, document_json)
+       VALUES (?, ?, ?, NULL, 'complete', 'complete', 'Audit report ready.', 100, ?, ?, ?, NULL, ?, ?, ?, ?, ?, NULL)`,
+    )
+    .run(
+      record.id,
+      record.filename,
+      record.fileSize,
+      record.createdAt,
+      record.completedAt ?? record.createdAt,
+      record.engineVersion,
+      JSON.stringify(sanitizeExtraction(record.extraction)),
+      JSON.stringify(record.findings),
+      JSON.stringify(record.summary),
+      JSON.stringify(record.limitations),
+      JSON.stringify(record.timings),
+    );
+  return Number(result.changes) > 0;
 }
 
 export function deleteAudit(id: string): boolean {

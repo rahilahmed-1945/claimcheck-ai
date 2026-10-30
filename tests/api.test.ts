@@ -16,6 +16,7 @@ import path from "node:path";
 import test, { after, before } from "node:test";
 import PDFDocument from "pdfkit";
 import type { AuditErrorPayload, AuditRecord, AuditListResponse } from "../shared/types.js";
+import { extractPdf } from "../server/src/pdf/extract.js";
 
 const ROOT = process.cwd();
 const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "claimcheck-api-"));
@@ -224,24 +225,38 @@ test("processes the sample paper into a persisted, downloadable audit", async ()
   assert.ok(record.summary, "completed audit must expose a summary");
   assert.ok(record.summary.claimsAudited > 0);
   assert.ok(record.findings.length > 0);
-  assert.ok(record.document && record.document.text.length > 0);
   assert.equal(record.summary.claimsAudited, record.findings.length);
   assert.ok(record.summary.byCategory.potential_contradiction >= 1, "demo paper must retain its known contradiction");
 
+  // The source document is not retained or served; only aggregate extraction statistics are.
+  assert.equal(record.document, null);
+  assert.equal(record.fileHash, null);
+  assert.ok(record.extraction && record.extraction.pageCount > 0 && record.extraction.sectionCount > 0);
+  for (const key of ["sections", "tables", "captions", "text", "pages"]) {
+    assert.ok(!(key in (record.extraction as object)), `extraction must not carry ${key}`);
+  }
+
+  // Offsets still point at the paper's text: re-extract the same sample locally to check them.
+  const source = await extractPdf(fs.readFileSync(path.join(ROOT, "samples", "claimcheck-demo-paper.pdf")));
   for (const finding of record.findings) {
-    assert.equal(
-      record.document.text.slice(finding.claim.offset, finding.claim.offset + finding.claim.text.length),
-      finding.claim.text,
-    );
+    assert.equal(source.text.slice(finding.claim.offset, finding.claim.offset + finding.claim.text.length), finding.claim.text);
     for (const reference of finding.evidence) {
       if (reference.kind === "metadata") continue;
       assert.ok(reference.page >= 1);
-      assert.equal(
-        record.document.text.slice(reference.offset ?? -1, (reference.offset ?? -1) + reference.quote.length),
-        reference.quote,
-      );
+      assert.equal(source.text.slice(reference.offset ?? -1, (reference.offset ?? -1) + reference.quote.length), reference.quote);
     }
   }
+
+  // Nothing beyond the quoted excerpts reaches the database files (main file and WAL).
+  const quoted = record.findings.flatMap((finding) => [finding.claim.text, ...finding.evidence.map((reference) => reference.quote)]).join("\n");
+  const unquoted = source.sentences.map((sentence) => sentence.text).filter((text) => text.length > 60 && !quoted.includes(text));
+  assert.ok(unquoted.length >= 3, "the sample must have sentences that no finding quotes");
+  const storedBytes = fs
+    .readdirSync(DATA_DIR)
+    .filter((name) => name.startsWith("claimcheck.sqlite"))
+    .map((name) => fs.readFileSync(path.join(DATA_DIR, name)).toString("utf8"))
+    .join("\n");
+  for (const text of unquoted) assert.ok(!storedBytes.includes(text), `unquoted document text was stored: "${text.slice(0, 60)}"`);
 
   const list = (await (await fetch(`${server.baseUrl}/api/audits`)).json()) as AuditListResponse;
   const stored = list.audits.find((item) => item.id === auditId);
@@ -284,7 +299,7 @@ test("retrieves the completed audit after a restart and deletes it", async () =>
   const record = (await response.json()) as AuditRecord;
   assert.equal(record.status, "complete");
   assert.ok(record.findings.length > 0);
-  assert.ok(record.document?.text.length);
+  assert.equal(record.document, null, "reports are served without the source document");
   assert.ok(record.summary?.claimsAudited);
 
   const deleted = await fetch(`${server.baseUrl}/api/audits/${completedAuditId}`, { method: "DELETE" });

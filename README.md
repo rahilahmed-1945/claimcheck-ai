@@ -66,7 +66,7 @@ npm run start       # builds separately; serves UI + API on http://127.0.0.1:878
   contradiction, and needs review.
 - Evidence-linked findings with exact quotes, page numbers, section names, numeric comparisons,
   check outcomes, and interpretation limits.
-- Traceable extracted-text viewer with page navigation and evidence highlighting.
+- Every finding quotes its claim and evidence with section and page. The source text itself is not retained (see Data handling).
 - Markdown and JSON report downloads.
 - Local SQLite persistence, report archive, and deletion.
 - A measured Evaluation page backed by the same extractor and engine, with per-category precision,
@@ -230,17 +230,50 @@ documented by Wispr; usage is billed by tokens under the organization's contract
 
 ## Data handling and privacy
 
-- Uploaded PDFs are held in **server memory** during processing. The original file is not written to
-  disk.
-- Extracted text, sections, reconstructed tables, findings, and metadata are stored in a local SQLite
-  database at `data/claimcheck.sqlite`.
+- Uploaded PDFs are held in **server memory** during processing. The original file is never written to
+  disk, and the buffer is released when processing ends.
+- **The paper is not retained.** After an audit completes, only the audit is stored in SQLite
+  (`data/claimcheck.sqlite`): findings, the summary and category counts, limitations, timings, and
+  aggregate extraction statistics (pages, words, and section, table, and caption counts). The following
+  are never stored:
+  - the full text and page text;
+  - section headings;
+  - table cells;
+  - captions;
+  - a file hash (`server/src/privacy.ts`, `completeAudit` in `server/src/db.ts`).
+- **What still reveals something about the source.**
+  - Each finding quotes its claim sentence and its evidence passages or table rows, with section titles
+    and page numbers. These excerpts are the audit result and are kept on purpose.
+  - The original filename, file size, page and word counts, and extraction warnings (fixed templates
+    with counts) are also kept.
+  - The Markdown and JSON reports contain the same excerpts.
+- **Older records are cleaned automatically.** On startup, `purgeStoredDocumentContent()` clears
+  `document_json` and file hashes, and reduces `extraction_json` to counts. It keeps findings, summaries,
+  limitations, and timings, and rewrites the database file (`VACUUM`) so removed text does not linger.
+  It is idempotent and touches no other records.
+- The UI's **Source text** tab explains that the document is not retained. "View in document" links
+  are hidden.
 - No outbound AI, document-processing, or font service is used. Fonts are bundled locally. The only
   exception is opt-in: with Wispr Flow API transcription enabled, recorded question audio (not paper
   text) is sent to Wispr's API.
 - Paper text is not intentionally logged. Only startup and technical error information is logged.
-- Reports remain until deleted from the Reports page. There is no automatic retention policy.
-- The database is **not encrypted at rest**, and phase one has **no authentication or per-user
-  isolation**. Anyone who can access this server or its database can read stored audits.
+- Reports remain until deleted. There is no automatic retention policy.
+- **Access.**
+  - Report IDs are random UUIDs, so a report link works as an unguessable link.
+  - By default anyone who can reach the server can upload, **list every report** (`GET /api/audits`),
+    and **delete** reports.
+  - Set `CLAIMCHECK_ADMIN_TOKEN` to require `Authorization: Bearer <token>` for listing, deleting, and
+    restoring backups. Report links and uploads keep working without it. The UI then shows an "admin
+    token required" notice on the Reports list.
+  - There are no user accounts, per-user isolation, rate limits, or encryption at rest. Anyone holding
+    a report's link can read it, so share links only with people who may see the findings and their
+    quoted excerpts.
+- **Backup and restore.**
+  - `npx tsx scripts/backup-report.ts <baseUrl> <auditId> <out.json>` saves a sanitized copy of a
+    report, with no document text and no hash. Keep it outside the repository: findings quote the
+    paper.
+  - `CLAIMCHECK_ADMIN_TOKEN=… npx tsx scripts/restore-report.ts <baseUrl> <out.json>` restores it under
+    the same ID. It never overwrites an existing record.
 - Set `CLAIMCHECK_DATA_DIR` to move the database. Use `PORT` to change the API port.
 - Reviewer dispositions and notes are stored in the **browser's localStorage**, keyed by audit ID.
   They are not sent to the server, do not follow you to another browser, and are not included in the
@@ -262,7 +295,7 @@ Current run:
 
 | Measure | Result |
 | --- | --- |
-| Unit/API/regression tests | 104/104 passed |
+| Unit/API/regression tests | 110/111 passed, 1 optional private-PDF test skipped |
 | Fixtures | 13 |
 | Annotated findings | 52 across all five categories |
 | Claim-selection recall | 1.000 (52/52) |
@@ -322,7 +355,7 @@ interruption. No partial findings are shown as a completed audit.
 
 - `npm run typecheck` — passes with strict TypeScript, including the test suite.
 - `npm run build` — passes; production client bundle generated.
-- `npm run test:unit` — 104/104 tests pass (one real-manuscript test runs only when that PDF is
+- `npm run test:unit` — 110/111 tests pass (one optional structural test runs only when a private PDF is
   present locally; set `CLAIMCHECK_REGRESSION_PDF` to point at it), including:
   - two-column layout regression (`tests/two_column_layout.test.ts`): column reading order, page-1
     author blocks, compact tables kept out of prose and reconstructed cell-by-cell, superscripts,
@@ -401,10 +434,12 @@ a Node feature whose API may change.
 
 ## Deployment status
 
-**Not publicly deployed.** By default the server binds to `127.0.0.1`. Setting `HOST=0.0.0.0` (with
-`PORT` from the host) makes it reachable for a demo instance on a Node host such as Render's free web
-service; see [SUBMISSION.md](SUBMISSION.md) for the exact settings and risks. There is no authentication,
-so anyone who can reach a public instance can upload, view, and delete every report. A public phase-two deployment needs a Node-capable host with a persistent disk for
+A demo instance runs on Render's free web service with `HOST=0.0.0.0` and `PORT` from the host. See
+[SUBMISSION.md](SUBMISSION.md) for settings. On the free plan the SQLite file is on Render's ephemeral
+filesystem: it is lost on every redeploy, restart, or idle spin-down, so stored reports are not durable
+there. Use `scripts/backup-report.ts` and `scripts/restore-report.ts` to carry a report across a
+redeploy, or attach a persistent disk and point `CLAIMCHECK_DATA_DIR` at it. Without
+`CLAIMCHECK_ADMIN_TOKEN`, anyone who can reach the instance can list and delete reports. A public phase-two deployment needs a Node-capable host with a persistent disk for
 SQLite, authentication, rate limiting, HTTPS, retention controls, and hardening. Static-only or
 Cloudflare Workers hosting would require porting the Node PDF extraction pipeline and storage layer.
 

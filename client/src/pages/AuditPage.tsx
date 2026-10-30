@@ -115,7 +115,7 @@ export function AuditPage() {
   }
 
   if (audit.status === "complete") {
-    if (!audit.document || !audit.summary) {
+    if (!audit.summary) {
       return (
         <div className="page page-narrow">
           <ErrorPanel
@@ -123,7 +123,7 @@ export function AuditPage() {
               code: "INCOMPLETE_RECORD",
               title: "This report record is incomplete",
               message:
-                "The audit is marked complete, but its stored document or summary is missing. This can happen after manual database changes.",
+                "The audit is marked complete, but its stored summary is missing. This can happen after manual database changes.",
               recovery: ["Upload the paper again to create a new audit."],
             }}
             actions={

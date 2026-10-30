@@ -1,9 +1,4 @@
-import {
-  ENGINE_VERSION,
-  type AuditErrorPayload,
-  type AuditedDocument,
-  type AuditTimings,
-} from "../../shared/types.js";
+import { ENGINE_VERSION, type AuditErrorPayload, type AuditTimings } from "../../shared/types.js";
 import { runAudit } from "./audit/engine.js";
 import {
   MIN_AUDITABLE_CHARS,
@@ -14,6 +9,7 @@ import {
 import { completeAudit, failAudit, updateProgress } from "./db.js";
 import { AuditError, ERRORS, safeDetail } from "./errors.js";
 import { extractPdf } from "./pdf/extract.js";
+import { sanitizeExtraction } from "./privacy.js";
 
 const activeJobs = new Set<string>();
 
@@ -111,27 +107,12 @@ async function processAudit(id: string, buffer: Buffer): Promise<void> {
 
     updateProgress(id, { stage: "report", stageDetail: "Assembling traceable findings.", progress: 92 });
 
-    const document: AuditedDocument = {
-      text: extracted.text,
-      pages: extracted.pages,
-      sections: extracted.sections,
-      tables: extracted.tables,
-      captions: extracted.captions,
-    };
-
-    const extraction = {
-      pageCount: extracted.pageCount,
-      charCount: extracted.charCount,
-      wordCount: extracted.wordCount,
-      pagesWithText: extracted.pagesWithText,
-      textDensity: (extracted.charCount < 2500 ? "sparse" : "good") as "sparse" | "good",
-      bodyFontSize: extracted.bodyFontSize,
-      extractionMs: extracted.extractionMs,
-      sections: extracted.sections,
-      tables: extracted.tables,
-      captions: extracted.captions,
-      warnings: extracted.warnings,
-    };
+    // Only aggregate statistics leave this function. The extracted text, pages,
+    // sections, tables, and captions are dropped with `extracted` when it returns.
+    const extraction = sanitizeExtraction({
+      ...extracted,
+      textDensity: extracted.charCount < 2500 ? "sparse" : "good",
+    })!;
 
     const timings: AuditTimings = {
       extractionMs: extracted.extractionMs,
@@ -144,7 +125,6 @@ async function processAudit(id: string, buffer: Buffer): Promise<void> {
       summary: result.summary,
       limitations: result.limitations,
       extraction,
-      document,
       timings,
     });
     settled = true;
@@ -170,6 +150,7 @@ async function processAudit(id: string, buffer: Buffer): Promise<void> {
   }
 }
 
+/** The PDF buffer is held in memory only, and only until processing finishes. */
 export function enqueueAudit(id: string, buffer: Buffer): void {
   activeJobs.add(id);
   setImmediate(() => {

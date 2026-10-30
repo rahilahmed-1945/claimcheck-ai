@@ -630,6 +630,21 @@ summary:focus-visible,
   color: var(--accent);
 }
 
+.source-unavailable {
+  max-width: 720px;
+  font-size: 13px;
+}
+
+.source-unavailable strong {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--ink);
+}
+
+.source-unavailable p + p {
+  margin-top: 8px;
+}
+
 .notice-warning {
   background: var(--amber-wash);
   border-color: var(--amber-line);

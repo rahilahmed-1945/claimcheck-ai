@@ -27,7 +27,8 @@ function OutcomeIcon({ outcome }: { outcome: CheckOutcome }) {
 
 interface FindingDetailProps {
   finding: Finding;
-  onViewInDocument: (page: number, quote: string) => void;
+  /** Omitted when the source text is not available; the view links are then hidden. */
+  onViewInDocument?: (page: number, quote: string) => void;
   reviewerState: ReviewerState;
   onDispositionChange: (disposition: ReviewDisposition) => void;
   onNoteChange: (note: string) => void;
@@ -60,13 +61,15 @@ export function FindingDetail({
           </span>
         </div>
         <blockquote className="claim-quote">{finding.claim.text}</blockquote>
-        <button
-          type="button"
-          className="text-link text-link-sm"
-          onClick={() => onViewInDocument(finding.claim.page, finding.claim.text)}
-        >
-          <Icon name="eye" size={14} /> View claim in document
-        </button>
+        {onViewInDocument && (
+          <button
+            type="button"
+            className="text-link text-link-sm"
+            onClick={() => onViewInDocument(finding.claim.page, finding.claim.text)}
+          >
+            <Icon name="eye" size={14} /> View claim in document
+          </button>
+        )}
       </section>
 
       <section className="detail-block">
@@ -172,7 +175,7 @@ export function FindingDetail({
                         : ""}
                     {evidence.page > 0 ? `${evidence.sectionTitle} · p. ${evidence.page}` : evidence.sectionTitle}
                   </span>
-                  {evidence.page > 0 && (
+                  {onViewInDocument && evidence.page > 0 && (
                     <button
                       type="button"
                       className="text-link text-link-sm evidence-view"

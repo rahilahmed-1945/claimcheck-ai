@@ -6,10 +6,12 @@ import multer from "multer";
 import {
   ENGINE_VERSION,
   type AuditErrorPayload,
+  type AuditRecord,
   type BackendInfo,
   type EvaluationSummary,
 } from "../../shared/types.js";
 import {
+  ADMIN_TOKEN,
   CLIENT_DIST,
   DB_PATH,
   EVALUATION_SUMMARY_PATH,
@@ -26,8 +28,11 @@ import {
   createAudit,
   deleteAudit,
   getAudit,
+  importCompletedAudit,
   listAudits,
+  purgeStoredDocumentContent,
 } from "./db.js";
+import { sanitizeRecord } from "./privacy.js";
 import { AuditError, ERRORS, safeDetail } from "./errors.js";
 import { enqueueAudit, isJobActive } from "./jobs.js";
 import { buildJsonReport, buildMarkdownReport, reportFilename } from "./report.js";
@@ -35,6 +40,33 @@ import { MAX_VOICE_BYTES, VOICE_ERRORS, VoiceError, readVoiceConfig, transcribe,
 
 // Read once at startup; the API key stays in this process and is never logged.
 const voiceConfig = readVoiceConfig();
+
+// Remove document content left by earlier versions before serving anything.
+const purgedAtStartup = purgeStoredDocumentContent();
+
+/** Whether the request carries the admin token (constant-time comparison). */
+function hasAdminToken(req: Request): boolean {
+  if (!ADMIN_TOKEN) return false;
+  const supplied = /^Bearer\s+(.+)$/i.exec(req.get("authorization") ?? "")?.[1]?.trim() ?? "";
+  const a = crypto.createHash("sha256").update(supplied).digest();
+  const b = crypto.createHash("sha256").update(ADMIN_TOKEN).digest();
+  return crypto.timingSafeEqual(a, b);
+}
+
+/** Enforced only when an admin token is configured, so existing deployments keep working. */
+function requireAdminIfConfigured(req: Request): void {
+  if (ADMIN_TOKEN && !hasAdminToken(req)) {
+    throw new AuditError(
+      {
+        code: "ADMIN_TOKEN_REQUIRED",
+        title: "This action is restricted on this server",
+        message: "Listing all reports and deleting reports require the server's admin token. Reports remain available from their own links.",
+        recovery: ["Open a report from the link you received when you created it."],
+      },
+      401,
+    );
+  }
+}
 
 const app = express();
 app.disable("x-powered-by");
@@ -126,12 +158,11 @@ function validatePdf(file: Express.Multer.File | undefined): asserts file is Exp
 
 function createAndQueue(file: Express.Multer.File, filename: string): string {
   const id = crypto.randomUUID();
-  const hash = crypto.createHash("sha256").update(file.buffer).digest("hex");
+  // No file hash is stored: it would let anyone holding the PDF confirm it was uploaded.
   createAudit({
     id,
     filename,
     fileSize: file.size,
-    fileHash: hash,
     engineVersion: ENGINE_VERSION,
   });
   enqueueAudit(id, file.buffer);
@@ -151,8 +182,9 @@ app.get("/api/health", (_req, res) => {
     persistence: {
       kind: "SQLite (node:sqlite)",
       location: path.relative(ROOT_DIR, DB_PATH) || "data/claimcheck.sqlite",
-      note: "Extracted text and findings are stored locally. The original PDF is not written to disk. There is no authentication in phase one.",
+      note: "Findings, summaries, and aggregate statistics are stored. The uploaded PDF and its extracted text are processed in memory and not retained. Findings quote short claim and evidence excerpts.",
     },
+    adminProtected: Boolean(ADMIN_TOKEN),
     sampleAvailable: fs.existsSync(SAMPLE_PDF),
   };
   res.json(info);
@@ -218,9 +250,64 @@ app.get("/api/evaluation", (_req, res) => {
 });
 
 app.get("/api/audits", (req, res) => {
-  const requested = Number(req.query.limit ?? 30);
-  const limit = Number.isFinite(requested) ? Math.max(1, Math.min(100, Math.floor(requested))) : 30;
-  res.json({ audits: listAudits(limit), total: countAudits() });
+  try {
+    requireAdminIfConfigured(req);
+    const requested = Number(req.query.limit ?? 30);
+    const limit = Number.isFinite(requested) ? Math.max(1, Math.min(100, Math.floor(requested))) : 30;
+    res.json({ audits: listAudits(limit), total: countAudits() });
+  } catch (error) {
+    sendError(res, error);
+  }
+});
+
+// Restore a completed audit from a sanitized backup (scripts/restore-report.ts).
+// Disabled unless an admin token is configured.
+app.post("/api/admin/import", express.json({ limit: "4mb" }), (req, res) => {
+  try {
+    if (!ADMIN_TOKEN) throw ERRORS.notFound();
+    requireAdminIfConfigured(req);
+    const record = req.body as Partial<AuditRecord> | null;
+    const valid =
+      record &&
+      typeof record.id === "string" &&
+      /^[0-9a-f-]{36}$/i.test(record.id) &&
+      typeof record.filename === "string" &&
+      record.status === "complete" &&
+      Array.isArray(record.findings) &&
+      record.summary &&
+      typeof record.summary === "object" &&
+      typeof record.createdAt === "string";
+    if (!valid) {
+      throw new AuditError(
+        {
+          code: "INVALID_BACKUP",
+          title: "Backup not accepted",
+          message: "The body must be a completed audit record exported by scripts/backup-report.ts.",
+          recovery: ["Re-export the report and try again."],
+        },
+        400,
+      );
+    }
+    const clean = sanitizeRecord({
+      fileSize: 0,
+      fileHash: null,
+      stage: "complete",
+      stageDetail: "",
+      progress: 100,
+      completedAt: null,
+      engineVersion: ENGINE_VERSION,
+      error: null,
+      extraction: null,
+      limitations: [],
+      timings: null,
+      document: null,
+      ...(record as Partial<AuditRecord>),
+    } as AuditRecord);
+    const imported = importCompletedAudit(clean);
+    res.status(imported ? 201 : 200).json({ id: clean.id, imported, reason: imported ? null : "already present" });
+  } catch (error) {
+    sendError(res, error);
+  }
 });
 
 app.post("/api/audits", (req, res) => {
@@ -349,6 +436,7 @@ app.get("/api/audits/:id/report.json", (req, res) => {
 
 app.delete("/api/audits/:id", (req, res) => {
   try {
+    requireAdminIfConfigured(req);
     if (isJobActive(req.params.id)) {
       throw new AuditError({
         code: "AUDIT_ACTIVE",
@@ -400,11 +488,16 @@ app.use((error: unknown, req: Request, res: Response, _next: express.NextFunctio
 const server = app.listen(PORT, HOST, () => {
   console.log(`ClaimCheck AI server listening on http://${HOST}:${PORT}`);
   console.log(`Engine ${ENGINE_VERSION} · database ${path.relative(ROOT_DIR, DB_PATH)}`);
-  console.log(
-    HOST === "127.0.0.1"
-      ? "No authentication is enabled. Keep this server on localhost."
-      : "WARNING: no authentication is enabled and this server is reachable from the network. Anyone who can reach it can upload, view, and delete reports.",
-  );
+  if (purgedAtStartup > 0) console.log(`Removed stored document content from ${purgedAtStartup} earlier audit record(s).`);
+  if (ADMIN_TOKEN) {
+    console.log("Admin token set: listing all reports, deleting, and restoring backups require it. Report links stay public.");
+  } else if (HOST !== "127.0.0.1") {
+    console.log(
+      "WARNING: no admin token (CLAIMCHECK_ADMIN_TOKEN) is set and this server is reachable from the network. Anyone can upload, list, view, and delete reports.",
+    );
+  } else {
+    console.log("No authentication is enabled. Keep this server on localhost.");
+  }
 });
 
 server.on("error", (error: NodeJS.ErrnoException) => {
