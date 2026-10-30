@@ -5,8 +5,8 @@
  * aggregate extraction statistics, but never the paper: no full text, page
  * text, section titles, table cells, captions, or file hash. Records written
  * by earlier versions are cleaned in place without losing their findings, the
- * cleanup is idempotent, and the opt-in admin token protects listing,
- * deletion, and backup restore.
+ * cleanup is idempotent, the public report list carries only safe metadata,
+ * and the opt-in admin token protects deletion and backup restore.
  */
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
@@ -21,7 +21,9 @@ import type { AuditRecord } from "../shared/types.js";
 const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "claimcheck-privacy-"));
 process.env.CLAIMCHECK_DATA_DIR = DATA_DIR;
 const db = await import("../server/src/db.js");
-const { extractionHasContent, sanitizeExtraction, sanitizeRecord } = await import("../server/src/privacy.js");
+const { PUBLIC_LIST_FIELDS, extractionHasContent, restorableRecord, sanitizeExtraction, sanitizeRecord } = await import(
+  "../server/src/privacy.js"
+);
 const raw = new DatabaseSync(path.join(DATA_DIR, "claimcheck.sqlite"));
 
 after(() => {
@@ -214,9 +216,12 @@ async function freePort(): Promise<number> {
   });
 }
 
-async function withServer(env: Record<string, string>, run: (base: string) => Promise<void>) {
+async function withServer(
+  env: Record<string, string>,
+  run: (base: string) => Promise<void>,
+  dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "claimcheck-admin-")),
+) {
   const port = await freePort();
-  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "claimcheck-admin-"));
   const child = spawn(process.execPath, ["--import", "tsx", "server/src/index.ts"], {
     cwd: process.cwd(),
     env: { ...process.env, ...env, PORT: String(port), CLAIMCHECK_DATA_DIR: dataDir, NODE_ENV: "test" },
@@ -235,8 +240,49 @@ async function withServer(env: Record<string, string>, run: (base: string) => Pr
     await run(base);
   } finally {
     child.kill();
+    await new Promise((resolve) => child.once("exit", resolve));
   }
 }
+
+const BACKUP = {
+  id: "66666666-6666-4666-8666-666666666666",
+  filename: "restored.pdf",
+  fileSize: 1000,
+  fileHash: "f".repeat(64),
+  status: "complete",
+  createdAt: "2026-10-30T00:00:00.000Z",
+  completedAt: "2026-10-30T00:00:01.000Z",
+  engineVersion: "0.1.0",
+  extraction: LEGACY_EXTRACTION,
+  findings: FINDINGS,
+  summary: SUMMARY,
+  limitations: ["A limitation."],
+  timings: { extractionMs: 1, auditMs: 1, totalMs: 2 },
+  document: { text: SECRET_TEXT },
+};
+
+/** The public list may only carry allow-listed metadata. */
+function assertSafeListing(listing: { audits: Record<string, unknown>[] }) {
+  for (const item of listing.audits) {
+    for (const key of Object.keys(item)) {
+      assert.ok((PUBLIC_LIST_FIELDS as readonly string[]).includes(key), `unexpected field "${key}" in the public list`);
+    }
+  }
+  const text = JSON.stringify(listing);
+  assert.ok(!text.includes(SECRET_TEXT) && !text.includes("Confidential") && !text.includes("f".repeat(64)));
+  assert.ok(!text.includes("A quoted claim excerpt."), "findings are not part of the listing");
+}
+
+test("restorableRecord accepts completed backups only and strips document content", () => {
+  const record = restorableRecord(BACKUP)!;
+  assert.equal(record.document, null);
+  assert.equal(record.fileHash, null);
+  assert.equal(extractionHasContent(record.extraction), false);
+  assert.equal(record.findings.length, 1);
+  assert.equal(restorableRecord({ ...BACKUP, status: "failed" }), null);
+  assert.equal(restorableRecord({ ...BACKUP, id: "../../etc" }), null);
+  assert.equal(restorableRecord(null), null);
+});
 
 test("without an admin token the server behaves as before and restore is disabled", async () => {
   await withServer({ CLAIMCHECK_ADMIN_TOKEN: "" }, async (base) => {
@@ -244,38 +290,33 @@ test("without an admin token the server behaves as before and restore is disable
     assert.equal((await fetch(`${base}/api/audits`)).status, 200);
     const restore = await fetch(`${base}/api/admin/import`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
     assert.equal(restore.status, 404);
+    assert.equal((await fetch(`${base}/api/audits/66666666-6666-4666-8666-666666666666`, { method: "DELETE" })).status, 404);
   });
 });
 
-test("with an admin token, listing, deleting, and restoring need it; report links stay open", async () => {
+test("with an admin token, the list and report pages are public but deleting and restoring need the token", async () => {
   const token = "test-admin-token-123";
   await withServer({ CLAIMCHECK_ADMIN_TOKEN: token }, async (base) => {
     const auth = { authorization: `Bearer ${token}` };
     assert.equal((await (await fetch(`${base}/api/health`)).json()).adminProtected, true);
-    assert.equal((await fetch(`${base}/api/audits`)).status, 401);
-    assert.equal((await fetch(`${base}/api/audits`, { headers: { authorization: "Bearer wrong" } })).status, 401);
-    assert.equal((await fetch(`${base}/api/audits`, { headers: auth })).status, 200);
 
-    const backup = {
-      id: "66666666-6666-4666-8666-666666666666",
-      filename: "restored.pdf",
-      fileSize: 1000,
-      status: "complete",
-      createdAt: "2026-10-30T00:00:00.000Z",
-      completedAt: "2026-10-30T00:00:01.000Z",
-      engineVersion: "0.1.0",
-      extraction: LEGACY_EXTRACTION,
-      findings: FINDINGS,
-      summary: SUMMARY,
-      limitations: ["A limitation."],
-      timings: { extractionMs: 1, auditMs: 1, totalMs: 2 },
-      document: { text: SECRET_TEXT },
-    };
+    const backup = BACKUP;
     const post = (headers: Record<string, string>) =>
       fetch(`${base}/api/admin/import`, { method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(backup) });
     assert.equal((await post({})).status, 401);
     assert.equal((await post(auth)).status, 201);
     assert.equal((await post(auth)).status, 200, "a second restore is a no-op");
+
+    // The public list (no token, as the browser sends it) shows the restored report with safe metadata only.
+    const listResponse = await fetch(`${base}/api/audits`);
+    assert.equal(listResponse.status, 200);
+    const listing = (await listResponse.json()) as { audits: Record<string, unknown>[] };
+    const listed = listing.audits.find((item) => item.id === backup.id);
+    assert.ok(listed, "restored report must appear in the public list");
+    assert.equal(listed.filename, "restored.pdf");
+    assert.equal(listed.status, "complete");
+    assert.equal(listed.pageCount, 7);
+    assertSafeListing(listing);
 
     // Anyone with the report link can still read it, without the document.
     const record = (await (await fetch(`${base}/api/audits/${backup.id}`)).json()) as AuditRecord;
@@ -286,4 +327,32 @@ test("with an admin token, listing, deleting, and restoring need it; report link
     assert.equal((await fetch(`${base}/api/audits/${backup.id}`, { method: "DELETE" })).status, 401);
     assert.equal((await fetch(`${base}/api/audits/${backup.id}`, { method: "DELETE", headers: auth })).status, 204);
   });
+});
+
+test("backups in CLAIMCHECK_RESTORE_DIR are restored on every start, sanitized and without duplicates", async () => {
+  const restoreDir = fs.mkdtempSync(path.join(os.tmpdir(), "claimcheck-restore-"));
+  fs.writeFileSync(path.join(restoreDir, "report.json"), JSON.stringify(BACKUP));
+  fs.writeFileSync(path.join(restoreDir, "broken.json"), "{ not json");
+  fs.writeFileSync(path.join(restoreDir, "notes.txt"), "ignored");
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "claimcheck-restore-data-"));
+  const check = async (base: string) => {
+    const listing = (await (await fetch(`${base}/api/audits`)).json()) as { audits: Record<string, unknown>[] };
+    assert.equal(listing.audits.filter((item) => item.id === BACKUP.id).length, 1);
+    assertSafeListing(listing);
+    const record = (await (await fetch(`${base}/api/audits/${BACKUP.id}`)).json()) as AuditRecord;
+    assert.equal(record.document, null);
+    assert.equal(record.fileHash, null);
+    assert.equal(record.findings.length, 1);
+  };
+  // First start restores it; a restart (same database) leaves exactly one copy.
+  await withServer({ CLAIMCHECK_RESTORE_DIR: restoreDir }, check, dataDir);
+  await withServer({ CLAIMCHECK_RESTORE_DIR: restoreDir }, check, dataDir);
+  // A fresh, empty database (as after a redeploy on ephemeral storage) gets it back.
+  await withServer({ CLAIMCHECK_RESTORE_DIR: restoreDir }, check);
+  const stored = fs
+    .readdirSync(dataDir)
+    .filter((name) => name.startsWith("claimcheck.sqlite"))
+    .map((name) => fs.readFileSync(path.join(dataDir, name)).toString("utf8"))
+    .join("\n");
+  assert.ok(!stored.includes(SECRET_TEXT), "restored records never store document text");
 });

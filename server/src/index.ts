@@ -13,6 +13,7 @@ import {
 import {
   ADMIN_TOKEN,
   CLIENT_DIST,
+  RESTORE_DIR,
   DB_PATH,
   EVALUATION_SUMMARY_PATH,
   HOST,
@@ -32,7 +33,7 @@ import {
   listAudits,
   purgeStoredDocumentContent,
 } from "./db.js";
-import { sanitizeRecord } from "./privacy.js";
+import { publicListItem, restorableRecord } from "./privacy.js";
 import { AuditError, ERRORS, safeDetail } from "./errors.js";
 import { enqueueAudit, isJobActive } from "./jobs.js";
 import { buildJsonReport, buildMarkdownReport, reportFilename } from "./report.js";
@@ -43,6 +44,21 @@ const voiceConfig = readVoiceConfig();
 
 // Remove document content left by earlier versions before serving anything.
 const purgedAtStartup = purgeStoredDocumentContent();
+
+// Restore sanitized backups from an optional directory (see RESTORE_DIR).
+const restoredAtStartup = { restored: 0, present: 0, rejected: 0 };
+if (RESTORE_DIR && fs.existsSync(RESTORE_DIR)) {
+  for (const name of fs.readdirSync(RESTORE_DIR).filter((entry) => entry.toLowerCase().endsWith(".json"))) {
+    try {
+      const record = restorableRecord(JSON.parse(fs.readFileSync(path.join(RESTORE_DIR, name), "utf8")));
+      if (!record) restoredAtStartup.rejected += 1;
+      else if (importCompletedAudit(record)) restoredAtStartup.restored += 1;
+      else restoredAtStartup.present += 1;
+    } catch {
+      restoredAtStartup.rejected += 1;
+    }
+  }
+}
 
 /** Whether the request carries the admin token (constant-time comparison). */
 function hasAdminToken(req: Request): boolean {
@@ -60,8 +76,8 @@ function requireAdminIfConfigured(req: Request): void {
       {
         code: "ADMIN_TOKEN_REQUIRED",
         title: "This action is restricted on this server",
-        message: "Listing all reports and deleting reports require the server's admin token. Reports remain available from their own links.",
-        recovery: ["Open a report from the link you received when you created it."],
+        message: "Deleting reports and restoring backups require the server's admin token. Reports remain viewable.",
+        recovery: ["Ask the server operator to delete or restore the report."],
       },
       401,
     );
@@ -249,12 +265,12 @@ app.get("/api/evaluation", (_req, res) => {
   }
 });
 
+// Public listing of safe metadata only (allow-listed fields: no findings, document, extraction details, or hash).
 app.get("/api/audits", (req, res) => {
   try {
-    requireAdminIfConfigured(req);
     const requested = Number(req.query.limit ?? 30);
     const limit = Number.isFinite(requested) ? Math.max(1, Math.min(100, Math.floor(requested))) : 30;
-    res.json({ audits: listAudits(limit), total: countAudits() });
+    res.json({ audits: listAudits(limit).map(publicListItem), total: countAudits() });
   } catch (error) {
     sendError(res, error);
   }
@@ -266,18 +282,8 @@ app.post("/api/admin/import", express.json({ limit: "4mb" }), (req, res) => {
   try {
     if (!ADMIN_TOKEN) throw ERRORS.notFound();
     requireAdminIfConfigured(req);
-    const record = req.body as Partial<AuditRecord> | null;
-    const valid =
-      record &&
-      typeof record.id === "string" &&
-      /^[0-9a-f-]{36}$/i.test(record.id) &&
-      typeof record.filename === "string" &&
-      record.status === "complete" &&
-      Array.isArray(record.findings) &&
-      record.summary &&
-      typeof record.summary === "object" &&
-      typeof record.createdAt === "string";
-    if (!valid) {
+    const clean = restorableRecord(req.body);
+    if (!clean) {
       throw new AuditError(
         {
           code: "INVALID_BACKUP",
@@ -288,21 +294,6 @@ app.post("/api/admin/import", express.json({ limit: "4mb" }), (req, res) => {
         400,
       );
     }
-    const clean = sanitizeRecord({
-      fileSize: 0,
-      fileHash: null,
-      stage: "complete",
-      stageDetail: "",
-      progress: 100,
-      completedAt: null,
-      engineVersion: ENGINE_VERSION,
-      error: null,
-      extraction: null,
-      limitations: [],
-      timings: null,
-      document: null,
-      ...(record as Partial<AuditRecord>),
-    } as AuditRecord);
     const imported = importCompletedAudit(clean);
     res.status(imported ? 201 : 200).json({ id: clean.id, imported, reason: imported ? null : "already present" });
   } catch (error) {
@@ -489,11 +480,16 @@ const server = app.listen(PORT, HOST, () => {
   console.log(`ClaimCheck AI server listening on http://${HOST}:${PORT}`);
   console.log(`Engine ${ENGINE_VERSION} · database ${path.relative(ROOT_DIR, DB_PATH)}`);
   if (purgedAtStartup > 0) console.log(`Removed stored document content from ${purgedAtStartup} earlier audit record(s).`);
+  if (RESTORE_DIR) {
+    console.log(
+      `Report backups: ${restoredAtStartup.restored} restored, ${restoredAtStartup.present} already present, ${restoredAtStartup.rejected} rejected.`,
+    );
+  }
   if (ADMIN_TOKEN) {
-    console.log("Admin token set: listing all reports, deleting, and restoring backups require it. Report links stay public.");
+    console.log("Admin token set: deleting reports and restoring backups require it. The report list and report pages are public.");
   } else if (HOST !== "127.0.0.1") {
     console.log(
-      "WARNING: no admin token (CLAIMCHECK_ADMIN_TOKEN) is set and this server is reachable from the network. Anyone can upload, list, view, and delete reports.",
+      "WARNING: no admin token (CLAIMCHECK_ADMIN_TOKEN) is set and this server is reachable from the network. Anyone can upload, view, and delete reports.",
     );
   } else {
     console.log("No authentication is enabled. Keep this server on localhost.");

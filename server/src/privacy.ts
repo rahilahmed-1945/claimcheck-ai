@@ -10,7 +10,7 @@
  * The same functions clean records written by older versions, so stored rows,
  * imported backups, and new audits all end up in the same shape.
  */
-import type { AuditRecord, ExtractionInfo } from "../../shared/types.js";
+import { ENGINE_VERSION, type AuditListItem, type AuditRecord, type ExtractionInfo } from "../../shared/types.js";
 
 const count = (value: unknown, predicate: (item: Record<string, unknown>) => boolean = () => true) =>
   Array.isArray(value) ? value.filter((item) => item && typeof item === "object" && predicate(item as Record<string, unknown>)).length : 0;
@@ -56,4 +56,61 @@ export function extractionHasContent(input: unknown): boolean {
  */
 export function sanitizeRecord(record: AuditRecord): AuditRecord {
   return { ...record, fileHash: null, extraction: sanitizeExtraction(record.extraction), document: null };
+}
+
+/**
+ * Validate a report backup (scripts/backup-report.ts) and return a sanitized,
+ * restorable record, or null if the input is not a completed audit record.
+ */
+export function restorableRecord(input: unknown): AuditRecord | null {
+  const record = input as Partial<AuditRecord> | null;
+  const valid =
+    !!record &&
+    typeof record === "object" &&
+    typeof record.id === "string" &&
+    /^[0-9a-f-]{36}$/i.test(record.id) &&
+    typeof record.filename === "string" &&
+    record.status === "complete" &&
+    Array.isArray(record.findings) &&
+    !!record.summary &&
+    typeof record.summary === "object" &&
+    typeof record.createdAt === "string";
+  if (!valid) return null;
+  return sanitizeRecord({
+    fileSize: 0,
+    fileHash: null,
+    stage: "complete",
+    stageDetail: "",
+    progress: 100,
+    completedAt: null,
+    engineVersion: ENGINE_VERSION,
+    error: null,
+    extraction: null,
+    limitations: [],
+    timings: null,
+    document: null,
+    ...record,
+  } as AuditRecord);
+}
+
+/** Fields a public report listing may contain. Findings, extraction details, and hashes are never listed. */
+export const PUBLIC_LIST_FIELDS = [
+  "id",
+  "filename",
+  "fileSize",
+  "status",
+  "stage",
+  "stageDetail",
+  "progress",
+  "createdAt",
+  "completedAt",
+  "errorTitle",
+  "summary",
+  "pageCount",
+  "engineVersion",
+] as const satisfies readonly (keyof AuditListItem)[];
+
+/** Copy only the allow-listed listing fields, so new record fields never leak into the public list. */
+export function publicListItem(item: AuditListItem): AuditListItem {
+  return Object.fromEntries(PUBLIC_LIST_FIELDS.map((key) => [key, item[key]])) as unknown as AuditListItem;
 }

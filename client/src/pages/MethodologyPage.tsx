@@ -112,7 +112,7 @@ const DATA_CARDS: { icon: IconName; title: string; body: string; tone?: "warning
   {
     icon: "alert",
     title: "Security limits",
-    body: "The SQLite file is not encrypted at rest and there is no retention automation. Anyone with a report's link can open it. Unless the server sets an admin token, anyone who can reach it can also list and delete reports.",
+    body: "The SQLite file is not encrypted at rest and there is no retention automation. The report list and report pages are public. Deleting reports requires the server's admin token when one is set; otherwise anyone who can reach the server can delete them.",
     tone: "warning",
   },
 ];

@@ -259,21 +259,28 @@ documented by Wispr; usage is billed by tokens under the organization's contract
 - Paper text is not intentionally logged. Only startup and technical error information is logged.
 - Reports remain until deleted. There is no automatic retention policy.
 - **Access.**
-  - Report IDs are random UUIDs, so a report link works as an unguessable link.
-  - By default anyone who can reach the server can upload, **list every report** (`GET /api/audits`),
-    and **delete** reports.
-  - Set `CLAIMCHECK_ADMIN_TOKEN` to require `Authorization: Bearer <token>` for listing, deleting, and
-    restoring backups. Report links and uploads keep working without it. The UI then shows an "admin
-    token required" notice on the Reports list.
-  - There are no user accounts, per-user isolation, rate limits, or encryption at rest. Anyone holding
-    a report's link can read it, so share links only with people who may see the findings and their
-    quoted excerpts.
+  - **Reports are public.** The Reports list (`GET /api/audits`) and each report page are open to
+    anyone who can reach the server.
+  - The list returns only allow-listed metadata (`PUBLIC_LIST_FIELDS` in `server/src/privacy.ts`):
+    ID, filename, size, status, dates, category counts, and page count. It never includes findings,
+    excerpts, extraction details, document text, or hashes.
+  - Opening a report shows its findings and their short quoted excerpts.
+  - Uploading is open to anyone.
+  - Set `CLAIMCHECK_ADMIN_TOKEN` to require `Authorization: Bearer <token>` for **deleting** reports and
+    **restoring** backups. The browser never holds the token, and the UI hides delete buttons when it is
+    set. Without it, anyone can delete reports.
+  - There are no user accounts, per-user isolation, rate limits, or encryption at rest. Do not upload
+    papers whose findings and quoted excerpts must stay private.
 - **Backup and restore.**
   - `npx tsx scripts/backup-report.ts <baseUrl> <auditId> <out.json>` saves a sanitized copy of a
     report, with no document text and no hash. Keep it outside the repository: findings quote the
     paper.
   - `CLAIMCHECK_ADMIN_TOKEN=… npx tsx scripts/restore-report.ts <baseUrl> <out.json>` restores it under
     the same ID. It never overwrites an existing record.
+  - `CLAIMCHECK_RESTORE_DIR=<dir>` restores every backup `.json` in that directory on each start. This
+    keeps a report available on hosts whose disk is wiped by restarts. On Render, add the backup as a
+    Secret File and set `CLAIMCHECK_RESTORE_DIR=/etc/secrets`. Backups are sanitized again on import,
+    and existing IDs are never overwritten.
 - Set `CLAIMCHECK_DATA_DIR` to move the database. Use `PORT` to change the API port.
 - Reviewer dispositions and notes are stored in the **browser's localStorage**, keyed by audit ID.
   They are not sent to the server, do not follow you to another browser, and are not included in the
@@ -295,7 +302,7 @@ Current run:
 
 | Measure | Result |
 | --- | --- |
-| Unit/API/regression tests | 110/111 passed, 1 optional private-PDF test skipped |
+| Unit/API/regression tests | 113/114 passed, 1 optional private-PDF test skipped |
 | Fixtures | 13 |
 | Annotated findings | 52 across all five categories |
 | Claim-selection recall | 1.000 (52/52) |
@@ -355,7 +362,7 @@ interruption. No partial findings are shown as a completed audit.
 
 - `npm run typecheck` — passes with strict TypeScript, including the test suite.
 - `npm run build` — passes; production client bundle generated.
-- `npm run test:unit` — 110/111 tests pass (one optional structural test runs only when a private PDF is
+- `npm run test:unit` — 113/114 tests pass (one optional structural test runs only when a private PDF is
   present locally; set `CLAIMCHECK_REGRESSION_PDF` to point at it), including:
   - two-column layout regression (`tests/two_column_layout.test.ts`): column reading order, page-1
     author blocks, compact tables kept out of prose and reconstructed cell-by-cell, superscripts,
@@ -438,8 +445,8 @@ A demo instance runs on Render's free web service with `HOST=0.0.0.0` and `PORT`
 [SUBMISSION.md](SUBMISSION.md) for settings. On the free plan the SQLite file is on Render's ephemeral
 filesystem: it is lost on every redeploy, restart, or idle spin-down, so stored reports are not durable
 there. Use `scripts/backup-report.ts` and `scripts/restore-report.ts` to carry a report across a
-redeploy, or attach a persistent disk and point `CLAIMCHECK_DATA_DIR` at it. Without
-`CLAIMCHECK_ADMIN_TOKEN`, anyone who can reach the instance can list and delete reports. A public phase-two deployment needs a Node-capable host with a persistent disk for
+redeploy, or attach a persistent disk and point `CLAIMCHECK_DATA_DIR` at it. Reports are
+public; without `CLAIMCHECK_ADMIN_TOKEN`, anyone who can reach the instance can also delete them. A public phase-two deployment needs a Node-capable host with a persistent disk for
 SQLite, authentication, rate limiting, HTTPS, retention controls, and hardening. Static-only or
 Cloudflare Workers hosting would require porting the Node PDF extraction pipeline and storage layer.
 

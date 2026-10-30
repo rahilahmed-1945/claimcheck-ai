@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import type { AuditErrorPayload } from "@shared/types";
-import { ApiError, deleteAudit } from "../lib/api";
+import { ApiError, deleteAudit, fetchHealth } from "../lib/api";
 import { CATEGORY_META, CATEGORY_ORDER } from "../lib/categories";
 import { formatBytes, formatDate, plural, relativeTime } from "../lib/format";
 import { useAuditList } from "../lib/useAuditList";
@@ -14,6 +14,16 @@ export function ReportsPage() {
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<AuditErrorPayload | null>(null);
+  // When the server sets an admin token, deletion is reserved for the operator; the browser never holds the token.
+  const [deletionRestricted, setDeletionRestricted] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchHealth(controller.signal)
+      .then((info) => setDeletionRestricted(Boolean(info.adminProtected)))
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, []);
 
   const handleDelete = async (id: string) => {
     setDeletingId(id);
@@ -177,7 +187,7 @@ export function ReportsPage() {
                   >
                     Open <Icon name="chevronRight" size={13} />
                   </Link>
-                  {confirmId === audit.id ? (
+                  {deletionRestricted ? null : confirmId === audit.id ? (
                     <div className="delete-confirm" role="group" aria-label="Confirm deletion">
                       <span>Delete permanently?</span>
                       <button
@@ -203,7 +213,7 @@ export function ReportsPage() {
                       className="icon-button"
                       onClick={() => setConfirmId(audit.id)}
                       aria-label={`Delete audit ${audit.filename}`}
-                      title="Delete audit and stored extracted text"
+                      title="Delete this audit report"
                     >
                       <Icon name="trash" size={15} />
                     </button>
@@ -218,9 +228,12 @@ export function ReportsPage() {
       <p className="workspace-footnote">
         <Icon name="database" size={14} />
         Reports (findings, summaries, and the short claim and evidence excerpts they quote) are stored
-        in the server's SQLite database. Uploaded PDFs and their full text are not kept. Reports are not
-        encrypted, are retained until deleted, and anyone with a report's link can open it. Without an
-        admin token, anyone who can reach this server can also list and delete reports.
+        in the server's SQLite database and are public: anyone who can reach this server can list and
+        open them. Uploaded PDFs and their full text are not kept. Reports are not encrypted and are
+        retained until deleted.{" "}
+        {deletionRestricted
+          ? "Deleting reports is restricted to the server operator."
+          : "This server has no admin token, so anyone can also delete reports."}
       </p>
     </div>
   );
