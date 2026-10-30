@@ -1,0 +1,18 @@
+{
+  "schema": "claimcheck-benchmark-manifest/v1",
+  "split": {
+    "method": "sha256(salt + ':' + paperId), first 32 bits / 2^32 < testFraction → test, else dev",
+    "salt": "claimcheck-benchmark-v1",
+    "testFraction": 0.3
+  },
+  "papers": [],
+  "regressionCases": [
+    {
+      "id": "private-regression-pdf",
+      "role": "regression-only",
+      "description": "A private, unpublished PDF used locally for extraction regression. Not distributed; nothing about its content is stored in this repository; not part of any benchmark split.",
+      "sha256": null,
+      "localPathEnv": "CLAIMCHECK_REGRESSION_PDF"
+    }
+  ]
+}

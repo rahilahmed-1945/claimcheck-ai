@@ -1,0 +1,66 @@
+[
+  {
+    "id": "problem1",
+    "text": "Every research paper makes claims. Numbers, comparisons, conclusions."
+  },
+  {
+    "id": "problem2",
+    "text": "Checking whether the paper's own tables and results actually support them is slow, manual work."
+  },
+  {
+    "id": "reveal",
+    "text": "ClaimCheck AI makes that check systematic. Because research claims deserve evidence."
+  },
+  {
+    "id": "drop",
+    "text": "Drop in a PDF. This one is a synthetic test paper, with problems planted on purpose."
+  },
+  {
+    "id": "process",
+    "text": "ClaimCheck reads the layout, maps the sections and tables, and picks out the sentences that make checkable claims."
+  },
+  {
+    "id": "results",
+    "text": "Nine claims audited. Each one is tied to evidence in the same document, or flagged when that evidence is missing."
+  },
+  {
+    "id": "signals",
+    "text": "It separates missing evidence, numbers that disagree between sections, and claims that reach beyond the experiments."
+  },
+  {
+    "id": "scroll",
+    "text": "Every finding shows its classification, its confidence, and exactly where the claim appears."
+  },
+  {
+    "id": "supported",
+    "text": "This results paragraph matches Table 2 exactly, so it is marked supported."
+  },
+  {
+    "id": "contradiction",
+    "text": "But the abstract reports ninety-eight point two percent accuracy, while Table 2 reports ninety-four point one for the same model. ClaimCheck shows both values, the gap, and the exact table row."
+  },
+  {
+    "id": "document",
+    "text": "One click shows that evidence in the extracted text, on page two."
+  },
+  {
+    "id": "voice1",
+    "text": "Or ask by voice. In this illustration, Wispr Flow dictates the question into the input field."
+  },
+  {
+    "id": "voice2",
+    "text": "The answer comes only from the audit record: Table 2, page two, flagged for review, not proof of an error."
+  },
+  {
+    "id": "reviewer",
+    "text": "A flag is not proof that the science is wrong. The reviewer decides, and that decision stays separate from the engine's label."
+  },
+  {
+    "id": "export",
+    "text": "Export the full report, with every claim, quote, page, and check."
+  },
+  {
+    "id": "close",
+    "text": "ClaimCheck AI. Evidence first. Uncertainty stated. Nothing invented."
+  }
+]

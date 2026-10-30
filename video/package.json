@@ -1,0 +1,24 @@
+{
+  "name": "claimcheck-explainer-video",
+  "private": true,
+  "description": "Explainer video for ClaimCheck AI (Remotion). Kept separate from the application.",
+  "type": "module",
+  "scripts": {
+    "capture": "node scripts/capture.mjs",
+    "voice": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/voice.ps1",
+    "sfx": "node scripts/sfx.mjs",
+    "studio": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts ClaimCheckExplainer ../submission/claimcheck_explainer.mp4 --codec=h264 --crf=16 --audio-bitrate=192k"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.539",
+    "react": "19.1.1",
+    "react-dom": "19.1.1",
+    "remotion": "4.0.539"
+  },
+  "devDependencies": {
+    "@types/react": "19.1.12",
+    "puppeteer-core": "25.16.0",
+    "typescript": "5.9.3"
+  }
+}

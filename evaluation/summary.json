@@ -1,0 +1,465 @@
+{
+  "generatedAt": "2026-10-26T20:51:41.064Z",
+  "engineVersion": "0.1.0",
+  "corpusVersion": "3458891dfd78",
+  "note": "Synthetic corpus only; not an estimate of performance on external papers.",
+  "totals": {
+    "cases": 13,
+    "expectedFindings": 52,
+    "findings": 52,
+    "matchedFindings": 52,
+    "exactCategoryMatches": 52,
+    "unexpectedFindings": 0,
+    "correctPredictions": 52,
+    "evidenceTraceFailures": 0,
+    "assertionFailures": 0,
+    "claimSelectionRecall": 1,
+    "exactCategoryAccuracy": 1,
+    "strictPrecision": 1,
+    "runtimeMs": 822
+  },
+  "perCategory": {
+    "potential_contradiction": {
+      "truePositive": 5,
+      "falsePositive": 0,
+      "falseNegative": 0,
+      "expected": 5,
+      "predicted": 5,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1
+    },
+    "potentially_unsupported": {
+      "truePositive": 22,
+      "falsePositive": 0,
+      "falseNegative": 0,
+      "expected": 22,
+      "predicted": 22,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1
+    },
+    "partially_supported": {
+      "truePositive": 3,
+      "falsePositive": 0,
+      "falseNegative": 0,
+      "expected": 3,
+      "predicted": 3,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1
+    },
+    "needs_review": {
+      "truePositive": 4,
+      "falsePositive": 0,
+      "falseNegative": 0,
+      "expected": 4,
+      "predicted": 4,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1
+    },
+    "supported": {
+      "truePositive": 18,
+      "falsePositive": 0,
+      "falseNegative": 0,
+      "expected": 18,
+      "predicted": 18,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1
+    }
+  },
+  "cases": [
+    {
+      "id": "numeric-core",
+      "title": "Numeric consistency and support",
+      "purpose": "Checks repeated metrics, table support, partial support, absent metrics, a missing table, a statistical-significance gap, and a citation-only claim.",
+      "pages": 2,
+      "words": 316,
+      "tables": 1,
+      "reliableTables": 1,
+      "findings": 9,
+      "expectedFindings": 9,
+      "matchedFindings": 9,
+      "correctCategories": 9,
+      "findingsWithoutExpectation": 0,
+      "evidenceTraceFailures": 0,
+      "failures": 0,
+      "actualByCategory": {
+        "supported": 1,
+        "partially_supported": 2,
+        "potentially_unsupported": 4,
+        "potential_contradiction": 1,
+        "needs_review": 1
+      },
+      "expectedByCategory": {
+        "supported": 1,
+        "partially_supported": 2,
+        "potentially_unsupported": 4,
+        "potential_contradiction": 1,
+        "needs_review": 1
+      }
+    },
+    {
+      "id": "context-guards",
+      "title": "Experimental context guards",
+      "purpose": "Ensures different datasets, splits, language pairs, and ablation settings do not become false contradictions, while a same-context cross-section conflict still does.",
+      "pages": 1,
+      "words": 199,
+      "tables": 0,
+      "reliableTables": 0,
+      "findings": 8,
+      "expectedFindings": 8,
+      "matchedFindings": 8,
+      "correctCategories": 8,
+      "findingsWithoutExpectation": 0,
+      "evidenceTraceFailures": 0,
+      "failures": 0,
+      "actualByCategory": {
+        "supported": 3,
+        "partially_supported": 0,
+        "potentially_unsupported": 2,
+        "potential_contradiction": 2,
+        "needs_review": 1
+      },
+      "expectedByCategory": {
+        "supported": 3,
+        "partially_supported": 0,
+        "potentially_unsupported": 2,
+        "potential_contradiction": 2,
+        "needs_review": 1
+      }
+    },
+    {
+      "id": "tables-and-references",
+      "title": "Table traceability and rounding",
+      "purpose": "Checks a reliable table, a legitimate rounding difference, a text-versus-table conflict, and a missing figure reference.",
+      "pages": 1,
+      "words": 150,
+      "tables": 1,
+      "reliableTables": 1,
+      "findings": 4,
+      "expectedFindings": 4,
+      "matchedFindings": 4,
+      "correctCategories": 4,
+      "findingsWithoutExpectation": 0,
+      "evidenceTraceFailures": 0,
+      "failures": 0,
+      "actualByCategory": {
+        "supported": 2,
+        "partially_supported": 0,
+        "potentially_unsupported": 1,
+        "potential_contradiction": 1,
+        "needs_review": 0
+      },
+      "expectedByCategory": {
+        "supported": 2,
+        "partially_supported": 0,
+        "potentially_unsupported": 1,
+        "potential_contradiction": 1,
+        "needs_review": 0
+      }
+    },
+    {
+      "id": "margin-vs-score",
+      "title": "Score improvement vs absolute score",
+      "purpose": "A three-point improvement margin must not be compared with the absolute accuracy values in a results table.",
+      "pages": 1,
+      "words": 154,
+      "tables": 1,
+      "reliableTables": 1,
+      "findings": 2,
+      "expectedFindings": 2,
+      "matchedFindings": 2,
+      "correctCategories": 2,
+      "findingsWithoutExpectation": 0,
+      "evidenceTraceFailures": 0,
+      "failures": 0,
+      "actualByCategory": {
+        "supported": 2,
+        "partially_supported": 0,
+        "potentially_unsupported": 0,
+        "potential_contradiction": 0,
+        "needs_review": 0
+      },
+      "expectedByCategory": {
+        "supported": 2,
+        "partially_supported": 0,
+        "potentially_unsupported": 0,
+        "potential_contradiction": 0,
+        "needs_review": 0
+      }
+    },
+    {
+      "id": "task-guard",
+      "title": "Different tasks and benchmarks",
+      "purpose": "BLEU values from WMT14, IWSLT, and different translation directions must not be compared as one measurement.",
+      "pages": 1,
+      "words": 105,
+      "tables": 0,
+      "reliableTables": 0,
+      "findings": 4,
+      "expectedFindings": 4,
+      "matchedFindings": 4,
+      "correctCategories": 4,
+      "findingsWithoutExpectation": 0,
+      "evidenceTraceFailures": 0,
+      "failures": 0,
+      "actualByCategory": {
+        "supported": 2,
+        "partially_supported": 0,
+        "potentially_unsupported": 2,
+        "potential_contradiction": 0,
+        "needs_review": 0
+      },
+      "expectedByCategory": {
+        "supported": 2,
+        "partially_supported": 0,
+        "potentially_unsupported": 2,
+        "potential_contradiction": 0,
+        "needs_review": 0
+      }
+    },
+    {
+      "id": "model-variants",
+      "title": "Different model scales",
+      "purpose": "Astra-Small and Astra-Base report different values on the same benchmark; the variant names, not the numbers alone, determine the table row.",
+      "pages": 1,
+      "words": 102,
+      "tables": 1,
+      "reliableTables": 1,
+      "findings": 3,
+      "expectedFindings": 3,
+      "matchedFindings": 3,
+      "correctCategories": 3,
+      "findingsWithoutExpectation": 0,
+      "evidenceTraceFailures": 0,
+      "failures": 0,
+      "actualByCategory": {
+        "supported": 3,
+        "partially_supported": 0,
+        "potentially_unsupported": 0,
+        "potential_contradiction": 0,
+        "needs_review": 0
+      },
+      "expectedByCategory": {
+        "supported": 3,
+        "partially_supported": 0,
+        "potentially_unsupported": 0,
+        "potential_contradiction": 0,
+        "needs_review": 0
+      }
+    },
+    {
+      "id": "scope-overgeneralization",
+      "title": "Overgeneralized conclusion",
+      "purpose": "A conclusion that generalizes across all domains or baselines must be classified as broader than the single reported experiment.",
+      "pages": 1,
+      "words": 119,
+      "tables": 1,
+      "reliableTables": 1,
+      "findings": 4,
+      "expectedFindings": 4,
+      "matchedFindings": 4,
+      "correctCategories": 4,
+      "findingsWithoutExpectation": 0,
+      "evidenceTraceFailures": 0,
+      "failures": 0,
+      "actualByCategory": {
+        "supported": 2,
+        "partially_supported": 0,
+        "potentially_unsupported": 2,
+        "potential_contradiction": 0,
+        "needs_review": 0
+      },
+      "expectedByCategory": {
+        "supported": 2,
+        "partially_supported": 0,
+        "potentially_unsupported": 2,
+        "potential_contradiction": 0,
+        "needs_review": 0
+      }
+    },
+    {
+      "id": "missing-evidence",
+      "title": "No identifiable supporting evidence",
+      "purpose": "A numeric claim with no matching value anywhere in the accessible document is unsupported, not a contradiction.",
+      "pages": 1,
+      "words": 85,
+      "tables": 0,
+      "reliableTables": 0,
+      "findings": 2,
+      "expectedFindings": 2,
+      "matchedFindings": 2,
+      "correctCategories": 2,
+      "findingsWithoutExpectation": 0,
+      "evidenceTraceFailures": 0,
+      "failures": 0,
+      "actualByCategory": {
+        "supported": 0,
+        "partially_supported": 0,
+        "potentially_unsupported": 2,
+        "potential_contradiction": 0,
+        "needs_review": 0
+      },
+      "expectedByCategory": {
+        "supported": 0,
+        "partially_supported": 0,
+        "potentially_unsupported": 2,
+        "potential_contradiction": 0,
+        "needs_review": 0
+      }
+    },
+    {
+      "id": "malformed-references",
+      "title": "Missing and malformed references",
+      "purpose": "References to Table 9, Figure 9, and Table 2B are traceable and missing; Table 2A exists.",
+      "pages": 1,
+      "words": 91,
+      "tables": 1,
+      "reliableTables": 1,
+      "findings": 3,
+      "expectedFindings": 3,
+      "matchedFindings": 3,
+      "correctCategories": 3,
+      "findingsWithoutExpectation": 0,
+      "evidenceTraceFailures": 0,
+      "failures": 0,
+      "actualByCategory": {
+        "supported": 0,
+        "partially_supported": 0,
+        "potentially_unsupported": 3,
+        "potential_contradiction": 0,
+        "needs_review": 0
+      },
+      "expectedByCategory": {
+        "supported": 0,
+        "partially_supported": 0,
+        "potentially_unsupported": 3,
+        "potential_contradiction": 0,
+        "needs_review": 0
+      }
+    },
+    {
+      "id": "unreliable-table",
+      "title": "Unreliable table extraction",
+      "purpose": "A row with an inconsistent column count makes the table unreliable; a claim that only exists in that table must not become a contradiction.",
+      "pages": 1,
+      "words": 97,
+      "tables": 1,
+      "reliableTables": 0,
+      "findings": 3,
+      "expectedFindings": 3,
+      "matchedFindings": 3,
+      "correctCategories": 3,
+      "findingsWithoutExpectation": 0,
+      "evidenceTraceFailures": 0,
+      "failures": 0,
+      "actualByCategory": {
+        "supported": 2,
+        "partially_supported": 0,
+        "potentially_unsupported": 1,
+        "potential_contradiction": 0,
+        "needs_review": 0
+      },
+      "expectedByCategory": {
+        "supported": 2,
+        "partially_supported": 0,
+        "potentially_unsupported": 1,
+        "potential_contradiction": 0,
+        "needs_review": 0
+      }
+    },
+    {
+      "id": "headingless-paper",
+      "title": "Readable text without section headings",
+      "purpose": "A text-based paper with no recognised headings is audited as an unstructured body and surfaces an extraction warning instead of failing silently.",
+      "pages": 1,
+      "words": 133,
+      "tables": 0,
+      "reliableTables": 0,
+      "findings": 1,
+      "expectedFindings": 1,
+      "matchedFindings": 1,
+      "correctCategories": 1,
+      "findingsWithoutExpectation": 0,
+      "evidenceTraceFailures": 0,
+      "failures": 0,
+      "actualByCategory": {
+        "supported": 0,
+        "partially_supported": 0,
+        "potentially_unsupported": 1,
+        "potential_contradiction": 0,
+        "needs_review": 0
+      },
+      "expectedByCategory": {
+        "supported": 0,
+        "partially_supported": 0,
+        "potentially_unsupported": 1,
+        "potential_contradiction": 0,
+        "needs_review": 0
+      }
+    },
+    {
+      "id": "sample-regression",
+      "title": "Committed demo-paper regression",
+      "purpose": "Locks the committed synthetic demo paper to its known findings so changes to selection, tables, or report generation cannot silently alter the product demo.",
+      "pages": 3,
+      "words": 945,
+      "tables": 1,
+      "reliableTables": 1,
+      "findings": 9,
+      "expectedFindings": 9,
+      "matchedFindings": 9,
+      "correctCategories": 9,
+      "findingsWithoutExpectation": 0,
+      "evidenceTraceFailures": 0,
+      "failures": 0,
+      "actualByCategory": {
+        "supported": 1,
+        "partially_supported": 1,
+        "potentially_unsupported": 4,
+        "potential_contradiction": 1,
+        "needs_review": 2
+      },
+      "expectedByCategory": {
+        "supported": 1,
+        "partially_supported": 1,
+        "potentially_unsupported": 4,
+        "potential_contradiction": 1,
+        "needs_review": 2
+      }
+    },
+    {
+      "id": "quiet-paper",
+      "title": "Quiet paper precision control",
+      "purpose": "A short qualitative paper with no checkable numeric or universal statements must produce no findings.",
+      "pages": 1,
+      "words": 206,
+      "tables": 0,
+      "reliableTables": 0,
+      "findings": 0,
+      "expectedFindings": 0,
+      "matchedFindings": 0,
+      "correctCategories": 0,
+      "findingsWithoutExpectation": 0,
+      "evidenceTraceFailures": 0,
+      "failures": 0,
+      "actualByCategory": {
+        "supported": 0,
+        "partially_supported": 0,
+        "potentially_unsupported": 0,
+        "potential_contradiction": 0,
+        "needs_review": 0
+      },
+      "expectedByCategory": {
+        "supported": 0,
+        "partially_supported": 0,
+        "potentially_unsupported": 0,
+        "potential_contradiction": 0,
+        "needs_review": 0
+      }
+    }
+  ]
+}

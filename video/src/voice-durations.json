@@ -1,0 +1,21 @@
+{
+  "voice": "af_heart",
+  "durations": {
+    "problem1": 4.629,
+    "problem2": 5.675,
+    "reveal": 5.333,
+    "drop": 5.739,
+    "process": 6.699,
+    "results": 7.147,
+    "signals": 6.848,
+    "scroll": 5.589,
+    "supported": 4.715,
+    "contradiction": 12.608,
+    "document": 3.947,
+    "voice1": 6.101,
+    "voice2": 6.571,
+    "reviewer": 7.403,
+    "export": 3.861,
+    "close": 4.693
+  }
+}
